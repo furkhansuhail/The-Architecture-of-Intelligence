@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;overflow-x:hidden}
+input[type="range"]{-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#1e1e2e;outline:none}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;cursor:pointer;background:#ff6b35}
+@keyframes pulse{0%,100%{opacity:0.6}50%{opacity:1}}
+#root-loading{color:#71717a;font-family:monospace;text-align:center;padding:60px 20px;font-size:13px}
+#root-error{color:#ef4444;font-family:monospace;text-align:center;padding:40px 20px;font-size:12px;background:#1a0a0a;border-radius:8px;margin:20px}
+</style>
+</head>
+<body>
+<div id="root"><div id="root-loading">Loading Full Fine-Tuning Visual...</div></div>
+
+<script type="text/babel">
+var useState = React.useState;
+var useEffect = React.useEffect;
+
+/* ── Color Palette ── */
+var C = {
+  bg:"#0a0a0f", card:"#12121a", border:"#1e1e2e",
+  accent:"#ff6b35", blue:"#4ecdc4", purple:"#a78bfa",
+  yellow:"#fbbf24", text:"#e4e4e7", muted:"#71717a",
+  dim:"#3f3f46", red:"#ef4444", green:"#4ade80",
+  cyan:"#38bdf8", pink:"#f472b6", orange:"#fb923c"
+};
+
+/* ── Shared Components ── */
+function TabBar(props) {
+  return (
+    <div style={{display:"flex",gap:0,borderBottom:"2px solid "+C.border,marginBottom:24,overflowX:"auto"}}>
+      {props.tabs.map(function(t,i){
+        var on = props.active === i;
+        return <button key={i} onClick={function(){props.onChange(i)}} style={{
+          padding:"12px 18px",background:"none",border:"none",
+          borderBottom:on?"2px solid "+C.accent:"2px solid transparent",
+          color:on?C.accent:C.muted,cursor:"pointer",
+          fontSize:11,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
+          transition:"all 0.2s",whiteSpace:"nowrap",marginBottom:-2
+        }}>{t}</button>;
+      })}
+    </div>
+  );
+}
+
+function Card(props) {
+  return (
+    <div style={Object.assign({
+      background:C.card,borderRadius:10,padding:"18px 22px",
+      border:"1px solid "+(props.highlight?C.accent:C.border),
+      transition:"border 0.3s"
+    },props.style||{})}>
+      {props.children}
+    </div>
+  );
+}
+
+function Insight(props) {
+  return (
+    <div style={Object.assign({
+      maxWidth:750,margin:"16px auto 0",padding:"16px 22px",
+      background:"rgba(255,107,53,0.06)",borderRadius:10,
+      border:"1px solid rgba(255,107,53,0.2)"
+    },props.style||{})}>
+      <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:6}}>{(props.icon||"\uD83D\uDCA1")+" "+(props.title||"Key Insight")}</div>
+      <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>{props.children}</div>
+    </div>
+  );
+}
+
+function SectionTitle(props) {
+  return (
+    <div style={{textAlign:"center",marginBottom:20}}>
+      <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:4}}>{props.title}</div>
+      <div style={{fontSize:12,color:C.muted}}>{props.subtitle}</div>
+    </div>
+  );
+}
+
+function StatBox(props) {
+  return (
+    <div style={{textAlign:"center",minWidth:props.minW||90}}>
+      <div style={{fontSize:8,color:C.muted,marginBottom:4,letterSpacing:1}}>{props.label}</div>
+      <div style={{fontSize:props.bigFont||22,fontWeight:800,color:props.color||C.accent}}>{props.value}</div>
+      {props.sub && <div style={{fontSize:8,color:C.dim,marginTop:2}}>{props.sub}</div>}
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   TAB 1: BIG PICTURE
+   ============================================================== */
+function TabBigPicture() {
+  var _h = useState(0), hoverLayer = _h[0], setHoverLayer = _h[1];
+
+  var layers = [
+    {name:"Embedding",params:"131M",pct:1.9,color:C.cyan},
+    {name:"Attention Layers",params:"4.7B",pct:67.1,color:C.purple},
+    {name:"FFN Layers",params:"2.0B",pct:28.6,color:C.blue},
+    {name:"LM Head",params:"131M",pct:1.9,color:C.yellow},
+    {name:"LayerNorms",params:"33M",pct:0.5,color:C.green}
+  ];
+
+  return (
+    <div>
+      <SectionTitle title="The Big Picture" subtitle="Full fine-tuning: take a generalist, retrain EVERYTHING to become a specialist" />
+
+      <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
+        <svg width={780} height={280} viewBox="0 0 780 280" style={{background:"#08080d",borderRadius:10,border:"1px solid "+C.border}}>
+          <text x={120} y={22} textAnchor="middle" fill={C.muted} fontSize={10} fontWeight={700} fontFamily="monospace">PRE-TRAINED MODEL</text>
+          <text x={120} y={36} textAnchor="middle" fill={C.dim} fontSize={8} fontFamily="monospace">(General Knowledge)</text>
+          {[0,1,2,3,4,5,6,7].map(function(i){
+            return <rect key={"p"+i} x={40} y={48+i*26} width={160} height={20} rx={4} fill={C.dim+"30"} stroke={C.dim+"60"} strokeWidth={1}/>;
+          })}
+          <text x={120} y={270} textAnchor="middle" fill={C.dim} fontSize={9} fontFamily="monospace">7B parameters</text>
+
+          <g>
+            <line x1={220} y1={145} x2={290} y2={145} stroke={C.accent} strokeWidth={2}/>
+            <polygon points="295,145 288,140 288,150" fill={C.accent}/>
+            <text x={258} y={133} textAnchor="middle" fill={C.accent} fontSize={14}>&#x1F513;</text>
+            <text x={258} y={166} textAnchor="middle" fill={C.accent} fontSize={8} fontWeight={700} fontFamily="monospace">ALL UNLOCKED</text>
+          </g>
+
+          <rect x={310} y={55} width={140} height={180} rx={10} fill={C.accent+"08"} stroke={C.accent+"40"} strokeWidth={1.5} strokeDasharray="6,3"/>
+          <text x={380} y={22} textAnchor="middle" fill={C.accent} fontSize={10} fontWeight={700} fontFamily="monospace">TRAINING LOOP</text>
+          <text x={380} y={36} textAnchor="middle" fill={C.accent+"80"} fontSize={8} fontFamily="monospace">(Task-Specific Data)</text>
+          {["Forward","Loss","Backprop","Update"].map(function(s,i){
+            var cols=[C.blue,C.red,C.purple,C.green];
+            return <g key={s}>
+              <rect x={330} y={70+i*42} width={100} height={28} rx={6} fill={cols[i]+"15"} stroke={cols[i]+"50"} strokeWidth={1}/>
+              <text x={380} y={88+i*42} textAnchor="middle" fill={cols[i]} fontSize={9} fontWeight={700} fontFamily="monospace">{s}</text>
+              {i<3 && <line x1={380} y1={98+i*42} x2={380} y2={112+i*42} stroke={C.dim} strokeWidth={1}/>}
+            </g>;
+          })}
+
+          <g>
+            <line x1={470} y1={145} x2={540} y2={145} stroke={C.green} strokeWidth={2}/>
+            <polygon points="545,145 538,140 538,150" fill={C.green}/>
+            <text x={505} y={133} textAnchor="middle" fill={C.green} fontSize={8} fontWeight={700} fontFamily="monospace">EVERY WEIGHT</text>
+            <text x={505} y={162} textAnchor="middle" fill={C.green} fontSize={8} fontFamily="monospace">UPDATED</text>
+          </g>
+
+          <text x={660} y={22} textAnchor="middle" fill={C.green} fontSize={10} fontWeight={700} fontFamily="monospace">FINE-TUNED MODEL</text>
+          <text x={660} y={36} textAnchor="middle" fill={C.green+"80"} fontSize={8} fontFamily="monospace">(Task Specialist)</text>
+          {[0,1,2,3,4,5,6,7].map(function(i){
+            return <rect key={"ft"+i} x={580} y={48+i*26} width={160} height={20} rx={4} fill={C.green+"10"} stroke={C.green+"40"} strokeWidth={1}/>;
+          })}
+          <text x={660} y={270} textAnchor="middle" fill={C.green} fontSize={9} fontWeight={700} fontFamily="monospace">7B params (ALL updated)</text>
+        </svg>
+      </div>
+
+      <Card style={{maxWidth:750,margin:"0 auto 16px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:14}}>What "ALL Parameters" Means Inside a 7B Model</div>
+        {layers.map(function(l,i){
+          var isH = hoverLayer===i+1;
+          return (
+            <div key={i} onMouseEnter={function(){setHoverLayer(i+1)}} onMouseLeave={function(){setHoverLayer(0)}}
+              style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,cursor:"pointer",padding:"4px 8px",borderRadius:6,background:isH?l.color+"10":"transparent",transition:"background 0.2s"}}>
+              <div style={{width:110,fontSize:9,color:isH?l.color:C.muted,fontFamily:"monospace",fontWeight:isH?700:400}}>{l.name}</div>
+              <div style={{flex:1,position:"relative",height:16}}>
+                <div style={{width:Math.max(4,l.pct)+"%",height:"100%",borderRadius:4,background:l.color+(isH?"70":"35"),border:"1px solid "+l.color+(isH?"90":"40"),transition:"all 0.3s"}}/>
+              </div>
+              <div style={{width:55,fontSize:9,color:isH?l.color:C.dim,fontFamily:"monospace",textAlign:"right"}}>{l.params}</div>
+              <div style={{width:40,fontSize:9,color:isH?l.color:C.dim,fontFamily:"monospace"}}>{l.pct+"%"}</div>
+            </div>
+          );
+        })}
+      </Card>
+
+      <Insight>
+        Think of a pre-trained model as a <span style={{color:C.blue,fontWeight:700}}>brilliant generalist</span> who has read millions of books. Full fine-tuning is <span style={{color:C.accent,fontWeight:700}}>intensive retraining</span> &#8212; reshaping every single connection toward your specific goal. The result: a <span style={{color:C.green,fontWeight:700}}>specialist</span>, but one that may forget some general knowledge.
+      </Insight>
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   TAB 2: TRAINING LOOP
+   ============================================================== */
+function TabTrainingLoop() {
+  var _st = useState(0), step = _st[0], setStep = _st[1];
+  var _au = useState(false), autoP = _au[0], setAutoP = _au[1];
+  var _lr = useState(3), lrIdx = _lr[0], setLrIdx = _lr[1];
+
+  var steps = [
+    {title:"Forward Pass",sub:"Model Makes a Prediction",color:C.blue,
+      desc:"Input flows through ALL layers: embedding, attention, feed-forward. The model produces an output prediction."},
+    {title:"Loss Calculation",sub:"How Wrong Was It?",color:C.red,
+      desc:"Compare prediction to the correct answer. High loss = very wrong. Cross-entropy loss is standard for language models."},
+    {title:"Backpropagation",sub:"Tracing the Blame",color:C.purple,
+      desc:"Work backward through the ENTIRE network. For each weight, compute: how much did you contribute to this error? This produces a gradient for EVERY parameter."},
+    {title:"Weight Update",sub:"Adjusting Everything",color:C.green,
+      desc:"Using an optimizer (Adam), EVERY weight is nudged to reduce error. Learning rate controls nudge size. In full FT, ALL billions of weights update here."},
+    {title:"Repeat",sub:"Batch After Batch",color:C.yellow,
+      desc:"This cycle repeats for every batch across multiple epochs. Gradient accumulation lets you simulate larger batches: 4 micro-batches of 8 = effective batch of 32."}
+  ];
+
+  useEffect(function(){
+    if(!autoP) return;
+    var t = setInterval(function(){setStep(function(s){return (s+1)%5})},2800);
+    return function(){clearInterval(t)};
+  },[autoP]);
+
+  var lrVals=["1e-3","5e-4","1e-4","2e-5","1e-6"];
+  var lrDescs=["Way too high: destroys knowledge!","Still too aggressive for fine-tuning","Upper bound: risky but fast","Sweet spot for most full fine-tuning","Very safe but slow convergence"];
+  var lrColors=[C.red,C.orange,C.yellow,C.green,C.blue];
+  var lrBarW=[100,80,55,30,10];
+
+  return (
+    <div>
+      <SectionTitle title="The Training Loop" subtitle="Forward &#8594; Loss &#8594; Backward &#8594; Update" />
+
+      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+        {steps.map(function(s,i){
+          var on=step===i;
+          return <button key={i} onClick={function(){setStep(i);setAutoP(false)}} style={{
+            padding:"8px 14px",borderRadius:8,border:"1.5px solid "+(on?s.color:C.border),
+            background:on?s.color+"20":C.card,color:on?s.color:C.muted,
+            cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"monospace"
+          }}>{(i+1)+". "+s.title}</button>;
+        })}
+        <button onClick={function(){setAutoP(!autoP)}} style={{
+          padding:"8px 14px",borderRadius:8,border:"1.5px solid "+(autoP?C.yellow:C.border),
+          background:autoP?C.yellow+"20":C.card,color:autoP?C.yellow:C.muted,
+          cursor:"pointer",fontSize:10,fontFamily:"monospace"
+        }}>{autoP?"||":"\u25B6"}</button>
+      </div>
+
+      <Card highlight={true} style={{maxWidth:750,margin:"0 auto 16px",borderColor:steps[step].color}}>
+        <div style={{fontSize:13,fontWeight:700,color:steps[step].color,marginBottom:4}}>{steps[step].title+" &#8212; "+steps[step].sub}</div>
+        <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>{steps[step].desc}</div>
+      </Card>
+
+      <Card style={{maxWidth:750,margin:"0 auto 16px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.yellow,marginBottom:12}}>The Learning Rate Dilemma</div>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:12}}>
+          <div style={{fontSize:9,color:C.muted,whiteSpace:"nowrap"}}>LR:</div>
+          <input type="range" min={0} max={4} value={lrIdx} onChange={function(e){setLrIdx(parseInt(e.target.value))}} style={{flex:1}}/>
+          <div style={{fontSize:14,fontWeight:800,color:lrColors[lrIdx],fontFamily:"monospace",minWidth:50}}>{lrVals[lrIdx]}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+          <div style={{fontSize:9,color:C.muted,width:80}}>Change size:</div>
+          <div style={{flex:1,position:"relative",height:20}}>
+            <div style={{width:lrBarW[lrIdx]+"%",height:"100%",borderRadius:4,background:lrColors[lrIdx]+"50",border:"1px solid "+lrColors[lrIdx],transition:"all 0.3s"}}/>
+          </div>
+        </div>
+        <div style={{padding:"8px 12px",background:lrColors[lrIdx]+"10",borderRadius:6,border:"1px solid "+lrColors[lrIdx]+"30"}}>
+          <div style={{fontSize:10,color:lrColors[lrIdx],fontWeight:700}}>{lrDescs[lrIdx]}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:4}}>Fine-tuning range: 1e-6 to 5e-5. Pre-trained weights encode valuable knowledge; reshape gently.</div>
+        </div>
+      </Card>
+
+      <Insight title="The Sculpture Analogy">
+        Pre-trained weights are a <span style={{color:C.purple,fontWeight:700}}>beautifully sculpted statue</span>. Fine-tuning is <span style={{color:C.accent,fontWeight:700}}>carefully chiseling new details</span>. Too aggressive (high LR) = destroy the sculpture. Too gentle (low LR) = never finish. <span style={{color:C.green,fontWeight:700}}>Sweet spot: 1e-5 to 3e-5</span>.
+      </Insight>
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   TAB 3: MEMORY & COST
+   ============================================================== */
+function TabMemory() {
+  var _m = useState(1), modelSel = _m[0], setModelSel = _m[1];
+  var _p = useState(true), mixedP = _p[0], setMixedP = _p[1];
+
+  var models = [
+    {name:"LLaMA 1B",params:1.24,color:C.green},
+    {name:"LLaMA 7B",params:7,color:C.blue},
+    {name:"LLaMA 13B",params:13,color:C.purple},
+    {name:"LLaMA 70B",params:70,color:C.accent}
+  ];
+
+  var m = models[modelSel];
+  var bp = mixedP?2:4;
+  var wMem = m.params*bp;
+  var gMem = m.params*bp;
+  var oMem = m.params*8;
+  var aMem = m.params<5?3:m.params<15?12:m.params<50?25:60;
+  var total = wMem+gMem+oMem+aMem;
+
+  var components = [
+    {name:"Model Weights",mem:wMem,formula:m.params+"B x "+bp+"B",color:C.blue,desc:mixedP?"BF16":"FP32"},
+    {name:"Gradients",mem:gMem,formula:m.params+"B x "+bp+"B",color:C.purple,desc:"Same dtype"},
+    {name:"Optimizer (Adam)",mem:oMem,formula:m.params+"B x 8B",color:C.red,desc:"Momentum+Var FP32"},
+    {name:"Activations",mem:aMem,formula:"~"+aMem+" GB",color:C.yellow,desc:"Variable"}
+  ];
+
+  var maxMem = Math.max.apply(null,components.map(function(c){return c.mem}));
+
+  return (
+    <div>
+      <SectionTitle title="Memory and Cost" subtitle="Why full fine-tuning is expensive and where GPU memory goes" />
+
+      <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:12,flexWrap:"wrap"}}>
+        {models.map(function(mod,i){
+          var on=modelSel===i;
+          return <button key={i} onClick={function(){setModelSel(i)}} style={{
+            padding:"8px 16px",borderRadius:8,border:"1.5px solid "+(on?mod.color:C.border),
+            background:on?mod.color+"20":C.card,color:on?mod.color:C.muted,
+            cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"monospace"
+          }}>{mod.name}</button>;
+        })}
+        <button onClick={function(){setMixedP(!mixedP)}} style={{
+          padding:"8px 16px",borderRadius:8,border:"1.5px solid "+(mixedP?C.cyan:C.border),
+          background:mixedP?C.cyan+"15":C.card,color:mixedP?C.cyan:C.muted,
+          cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"monospace"
+        }}>{mixedP?"BF16 Mixed \u2713":"FP32 Full"}</button>
+      </div>
+
+      <Card style={{maxWidth:750,margin:"0 auto 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text}}>GPU Memory Breakdown</div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:22,fontWeight:800,color:total>80?C.red:total>40?C.orange:C.green}}>{"~"+total.toFixed(0)+" GB"}</div>
+            <div style={{fontSize:8,color:C.muted}}>TOTAL VRAM</div>
+          </div>
+        </div>
+        {components.map(function(comp,i){
+          var pct=(comp.mem/total)*100;
+          var barW=Math.max(6,(comp.mem/maxMem)*100);
+          return (
+            <div key={i} style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                <div style={{fontSize:9,color:comp.color,fontWeight:700,fontFamily:"monospace"}}>{comp.name+" ("+comp.desc+")"}</div>
+                <div style={{fontSize:9,color:comp.color,fontFamily:"monospace"}}>{comp.mem.toFixed(1)+" GB ("+pct.toFixed(0)+"%)"}</div>
+              </div>
+              <div style={{position:"relative",height:22,background:C.border,borderRadius:4}}>
+                <div style={{width:barW+"%",height:"100%",borderRadius:4,background:comp.color+"50",border:"1px solid "+comp.color,transition:"width 0.5s"}}/>
+                <div style={{position:"absolute",left:8,top:4,fontSize:8,color:C.muted,fontFamily:"monospace"}}>{comp.formula}</div>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{marginTop:12,padding:"8px 12px",background:C.red+"08",borderRadius:6,border:"1px solid "+C.red+"25"}}>
+          <div style={{fontSize:9,color:C.red,fontWeight:700}}>{"\u26A0 Optimizer states dominate memory"}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:2}}>Adam stores 2 extra FP32 values per weight (momentum + variance). This is why 8-bit Adam exists.</div>
+        </div>
+      </Card>
+
+      <Card style={{maxWidth:750,margin:"0 auto 16px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:12}}>Full Fine-Tuning vs LoRA</div>
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
+          {[
+            {label:"Full FT",mem:total.toFixed(0)+" GB",params:"100%",tasks:m.params*bp+" GB/task",color:C.accent},
+            {label:"LoRA",mem:(wMem+3).toFixed(0)+" GB",params:"~0.3%",tasks:"~50 MB/task",color:C.green}
+          ].map(function(v,i){
+            return (
+              <div key={i} style={{flex:1,minWidth:200,padding:"12px 16px",borderRadius:8,background:v.color+"08",border:"1px solid "+v.color+"30"}}>
+                <div style={{fontSize:12,fontWeight:800,color:v.color,marginBottom:8}}>{v.label}</div>
+                {[{l:"VRAM",val:v.mem},{l:"Params trained",val:v.params},{l:"Storage/task",val:v.tasks}].map(function(r,j){
+                  return <div key={j} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <span style={{fontSize:9,color:C.muted}}>{r.l}</span>
+                    <span style={{fontSize:9,color:v.color,fontWeight:700,fontFamily:"monospace"}}>{r.val}</span>
+                  </div>;
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Insight title="Why PEFT Was Invented">
+        <span style={{color:C.red,fontWeight:700}}>{total.toFixed(0)+" GB"}</span> for {m.name} is massive. LoRA: <span style={{color:C.green,fontWeight:700}}>{"~"+(wMem+3).toFixed(0)+" GB"}</span>. Full model copy per task vs <span style={{color:C.green,fontWeight:700}}>~50 MB adapters</span>. Forgetting risk vs <span style={{color:C.green,fontWeight:700}}>base frozen</span>.
+      </Insight>
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   TAB 4: DATA PIPELINE
+   ============================================================== */
+function TabDataPipeline() {
+  var _ds = useState(0), step = _ds[0], setStep = _ds[1];
+
+  var pSteps = [
+    {title:"Raw Data (JSONL)",color:C.blue,
+      desc:"Your fine-tuning data is just text in simple files. No vectors, no embeddings.",
+      code:'{"instruction": "Classify sentiment",\n "input": "This movie was breathtaking",\n "output": "positive"}'},
+    {title:"Template Formatting",color:C.cyan,
+      desc:"Apply a model-specific chat template. Combine fields into a single string with special tokens (BOS, EOS, INST markers).",
+      code:'<s>[INST] Classify sentiment:\nThis movie was breathtaking\n[/INST] positive</s>'},
+    {title:"Tokenization",color:C.purple,
+      desc:"Break text into subword tokens and map to integer IDs. The tokenizer is FIXED and never changes during training.",
+      code:'[1, 518, 25580, 29962, 4134,\n 1598, 278, ..., 6374, 2]\n     ~20 tokens'},
+    {title:"Labels + Loss Mask",color:C.yellow,
+      desc:"-100 means IGNORE this token in the loss. Only grade the output tokens, not the instruction. This is called completion-only loss.",
+      code:'Labels:\n[-100, -100, ..., -100, 6374, 2]\n ^^^^instruction^^^^  ^^output^^'},
+    {title:"Pad + Attention Mask",color:C.orange,
+      desc:"All sequences in a batch are padded to same length. Attention mask: 1=real token, 0=padding (ignored).",
+      code:'input_ids:  [..., 6374, 2, 0, 0, 0]\nattn_mask:  [1, 1, ..., 1, 0, 0, 0]\nlabels:     [-100,.., 6374, 2, -100]'},
+    {title:"Embed + Forward Pass",color:C.green,
+      desc:"Embedding layer converts integer IDs to 4096-dim vectors INSIDE the model on GPU. Then through 32 transformer layers.",
+      code:'[batch, seq_len] int IDs\n  \u2193 Embedding Layer (on GPU)\n[batch, seq_len, 4096] float vectors\n  \u2193 32 Transformer Layers\n  \u2193 Loss + Backprop + Update'}
+  ];
+
+  return (
+    <div>
+      <SectionTitle title="Data Pipeline" subtitle="From raw JSONL on disk to gradient updates on GPU" />
+
+      <div style={{display:"flex",justifyContent:"center",gap:4,marginBottom:16,flexWrap:"wrap"}}>
+        {pSteps.map(function(s,i){
+          var on=step===i;
+          return <button key={i} onClick={function(){setStep(i)}} style={{
+            padding:"6px 12px",borderRadius:6,border:"1.5px solid "+(on?s.color:C.border),
+            background:on?s.color+"20":C.card,color:on?s.color:C.muted,
+            cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"monospace"
+          }}>{(i+1)+". "+s.title.split("(")[0].trim()}</button>;
+        })}
+      </div>
+
+      <Card highlight={true} style={{maxWidth:750,margin:"0 auto 16px",borderColor:pSteps[step].color}}>
+        <div style={{fontSize:13,fontWeight:700,color:pSteps[step].color,marginBottom:4}}>{"Step "+(step+1)+": "+pSteps[step].title}</div>
+        <div style={{fontSize:11,color:C.muted,lineHeight:1.7,marginBottom:12}}>{pSteps[step].desc}</div>
+        <div style={{padding:"12px 16px",background:"#08080d",borderRadius:8,border:"1px solid "+C.border}}>
+          <pre style={{fontSize:10,color:pSteps[step].color,fontFamily:"'JetBrains Mono',monospace",lineHeight:1.8,margin:0,whiteSpace:"pre-wrap"}}>{pSteps[step].code}</pre>
+        </div>
+      </Card>
+
+      <Card style={{maxWidth:750,margin:"0 auto 16px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:12}}>Where Data Lives During Training</div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+          {[
+            {title:"DISK",items:["JSONL/Parquet files","Model checkpoints"],color:C.blue},
+            {title:"CPU RAM",items:["DataLoader workers","Prefetched batches"],color:C.purple},
+            {title:"GPU VRAM",items:["Model weights","Gradients + Optimizer","Current batch tensors"],color:C.accent}
+          ].map(function(loc,i){
+            return (
+              <div key={i} style={{flex:1,minWidth:180,padding:"12px 14px",borderRadius:8,background:loc.color+"06",border:"1px solid "+loc.color+"25"}}>
+                <div style={{fontSize:10,fontWeight:700,color:loc.color,marginBottom:8}}>{loc.title}</div>
+                {loc.items.map(function(it,j){
+                  return <div key={j} style={{fontSize:9,color:C.muted,lineHeight:1.8,paddingLeft:8,borderLeft:"2px solid "+loc.color+"20"}}>{it}</div>;
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Insight title="Common Misconception">
+        The input is <span style={{color:C.red,fontWeight:700}}>NOT</span> pre-computed embedding vectors. You feed raw text. The embedding layer converts text to vectors <span style={{color:C.accent,fontWeight:700}}>on-the-fly inside the model</span>. The embedding table itself gets updated during full fine-tuning.
+      </Insight>
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   TAB 5: VARIANTS
+   ============================================================== */
+function TabVariants() {
+  var _vr = useState(0), sel = _vr[0], setSel = _vr[1];
+
+  var variants = [
+    {name:"Feature Extraction",color:C.blue,flexibility:10,safety:95,cost:15,
+      unlock:"0%",head:"New head only",
+      desc:"Freeze the ENTIRE pre-trained model. Only train a new classification head on top.",
+      pros:["\u2713 Zero forgetting","\u2713 Lowest compute cost","\u2713 Fastest training"],
+      cons:["\u26A0 Least flexible","\u26A0 Limited performance ceiling"]},
+    {name:"Gradual Unfreezing",color:C.purple,flexibility:65,safety:70,cost:60,
+      unlock:"0% \u2192 100%",head:"Top layers first",
+      desc:"Start by training only top layers. Epoch by epoch, progressively unfreeze deeper layers.",
+      pros:["\u2713 Balanced adaptation","\u2713 Reduces forgetting","\u2713 Elegant approach"],
+      cons:["\u26A0 More complex setup","\u26A0 Needs careful scheduling"]},
+    {name:"Standard Full FT",color:C.accent,flexibility:100,safety:30,cost:100,
+      unlock:"100%",head:"All layers from start",
+      desc:"ALL layers, ALL weights, updated from the very first step. Maximum flexibility and maximum risk.",
+      pros:["\u2713 Maximum flexibility","\u2713 Highest performance ceiling"],
+      cons:["\u26A0 Catastrophic forgetting","\u26A0 Highest GPU cost","\u26A0 Full copy per task"]}
+  ];
+
+  var v = variants[sel];
+
+  return (
+    <div>
+      <SectionTitle title="Variants and Spectrum" subtitle="From safest (frozen) to most aggressive (all unlocked)" />
+
+      <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:20,flexWrap:"wrap"}}>
+        {variants.map(function(vr,i){
+          var on=sel===i;
+          return <button key={i} onClick={function(){setSel(i)}} style={{
+            padding:"8px 16px",borderRadius:8,border:"1.5px solid "+(on?vr.color:C.border),
+            background:on?vr.color+"20":C.card,color:on?vr.color:C.muted,
+            cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"monospace"
+          }}>{vr.name}</button>;
+        })}
+      </div>
+
+      <Card style={{maxWidth:750,margin:"0 auto 12px"}}>
+        <div style={{fontSize:9,color:C.muted,textAlign:"center",marginBottom:8}}>SPECTRUM</div>
+        <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:6}}>
+          {variants.map(function(vr,i){
+            var on=sel===i;
+            return <div key={i} onClick={function(){setSel(i)}} style={{
+              flex:1,height:on?36:24,background:vr.color+(on?"40":"15"),
+              borderTop:"3px solid "+vr.color+(on?"":"50"),
+              display:"flex",alignItems:"center",justifyContent:"center",
+              cursor:"pointer",transition:"all 0.3s",
+              borderRadius:i===0?"6px 0 0 6px":i===2?"0 6px 6px 0":0
+            }}>
+              <span style={{fontSize:8,color:on?vr.color:C.dim,fontWeight:700,fontFamily:"monospace"}}>{on?vr.name:""}</span>
+            </div>;
+          })}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
+          <span style={{fontSize:8,color:C.blue}}>{"\uD83D\uDD12 Safest"}</span>
+          <span style={{fontSize:8,color:C.accent}}>{"\uD83D\uDD25 Most aggressive"}</span>
+        </div>
+      </Card>
+
+      <Card highlight={true} style={{maxWidth:750,margin:"0 auto 16px",borderColor:v.color}}>
+        <div style={{fontSize:18,fontWeight:800,color:v.color,marginBottom:8}}>{v.name}</div>
+        <div style={{fontSize:11,color:C.muted,lineHeight:1.7,marginBottom:12}}>{v.desc}</div>
+
+        <div style={{display:"flex",gap:20,justifyContent:"center",marginBottom:12}}>
+          <StatBox label="UNLOCKED" value={v.unlock} color={v.color} bigFont={14}/>
+          <StatBox label="WHAT TRAINS" value={v.head} color={v.color} bigFont={10} minW={100}/>
+        </div>
+
+        {[{l:"Flexibility",val:v.flexibility,c:C.green},{l:"Safety",val:v.safety,c:C.blue},{l:"Compute Cost",val:v.cost,c:C.red}].map(function(bar,i){
+          return <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <div style={{width:90,fontSize:9,color:C.muted,fontFamily:"monospace"}}>{bar.l}</div>
+            <div style={{flex:1,height:14,background:C.border,borderRadius:3}}>
+              <div style={{width:bar.val+"%",height:"100%",borderRadius:3,background:bar.c+"50",border:"1px solid "+bar.c,transition:"width 0.5s"}}/>
+            </div>
+            <div style={{width:30,fontSize:9,color:bar.c,fontFamily:"monospace",fontWeight:700}}>{bar.val+"%"}</div>
+          </div>;
+        })}
+
+        <div style={{display:"flex",gap:16,marginTop:12,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:180}}>
+            <div style={{fontSize:9,color:C.green,fontWeight:700,marginBottom:4}}>Advantages</div>
+            {v.pros.map(function(p,i){return <div key={i} style={{fontSize:9,color:C.muted,lineHeight:1.8}}>{"  "+p}</div>})}
+          </div>
+          <div style={{flex:1,minWidth:180}}>
+            <div style={{fontSize:9,color:C.red,fontWeight:700,marginBottom:4}}>Trade-offs</div>
+            {v.cons.map(function(p,i){return <div key={i} style={{fontSize:9,color:C.muted,lineHeight:1.8}}>{"  "+p}</div>})}
+          </div>
+        </div>
+      </Card>
+
+      <Insight title="Practical Advice">
+        <span style={{color:C.blue}}>Feature Extraction</span> for quick baselines. <span style={{color:C.purple}}>Gradual Unfreezing</span> when you want the best balance. <span style={{color:C.accent}}>Standard Full FT</span> when you have massive data + GPUs. Most practitioners today use <span style={{color:C.green,fontWeight:700}}>PEFT/LoRA</span> instead.
+      </Insight>
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   TAB 6: CATASTROPHIC FORGETTING
+   ============================================================== */
+function TabForgetting() {
+  var _fe = useState(0), epoch = _fe[0], setEpoch = _fe[1];
+  var _fau = useState(false), autoP = _fau[0], setAutoP = _fau[1];
+  var _fs = useState(0), strategy = _fs[0], setStrategy = _fs[1];
+
+  useEffect(function(){
+    if(!autoP) return;
+    var t = setInterval(function(){setEpoch(function(e){return Math.min(e+1,10)})},1000);
+    return function(){clearInterval(t)};
+  },[autoP]);
+
+  useEffect(function(){setEpoch(0);setAutoP(false)},[strategy]);
+
+  var strategies = [
+    {name:"No Mitigation",color:C.red,
+      taskFn:function(e){return Math.min(95,40+e*8)},
+      genFn:function(e){return Math.max(15,95-e*9)},
+      desc:"All layers unlocked, aggressive LR, no regularization. Task performance climbs but general knowledge collapses."},
+    {name:"Small LR",color:C.yellow,
+      taskFn:function(e){return Math.min(88,40+e*5.5)},
+      genFn:function(e){return Math.max(55,95-e*4.5)},
+      desc:"LR = 2e-5. Gentle updates preserve more original knowledge. Slower but much safer."},
+    {name:"Early Stopping",color:C.blue,
+      taskFn:function(e){return e<=5?Math.min(82,40+e*9):82},
+      genFn:function(e){return e<=5?Math.max(65,95-e*6):65},
+      desc:"Stop at epoch 5 when validation loss plateaus. Sacrifice some task accuracy to retain general knowledge."},
+    {name:"Data Mixing",color:C.green,
+      taskFn:function(e){return Math.min(85,40+e*5)},
+      genFn:function(e){return Math.max(72,95-e*2.5)},
+      desc:"Include ~10% general data alongside task data. The model is continuously reminded of its broad knowledge."}
+  ];
+
+  var strat = strategies[strategy];
+  var taskV = strat.taskFn(epoch);
+  var genV = strat.genFn(epoch);
+
+  var chartPts = [];
+  for(var ci=0;ci<=10;ci++){
+    chartPts.push({e:ci,task:strat.taskFn(ci),gen:strat.genFn(ci)});
+  }
+
+  return (
+    <div>
+      <SectionTitle title="Catastrophic Forgetting" subtitle="The biggest danger of full fine-tuning and how to mitigate it" />
+
+      <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:16,flexWrap:"wrap"}}>
+        {strategies.map(function(s,i){
+          var on=strategy===i;
+          return <button key={i} onClick={function(){setStrategy(i)}} style={{
+            padding:"8px 14px",borderRadius:8,border:"1.5px solid "+(on?s.color:C.border),
+            background:on?s.color+"20":C.card,color:on?s.color:C.muted,
+            cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"monospace"
+          }}>{s.name}</button>;
+        })}
+      </div>
+
+      <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+        <svg width={680} height={260} viewBox="0 0 680 260" style={{background:"#08080d",borderRadius:10,border:"1px solid "+C.border}}>
+          {[0,25,50,75,100].map(function(val){
+            var y=230-val*2;
+            return <g key={val}>
+              <line x1={55} y1={y} x2={630} y2={y} stroke={C.dim+"30"} strokeWidth={0.5}/>
+              <text x={48} y={y+3} textAnchor="end" fill={C.dim} fontSize={8} fontFamily="monospace">{val+"%"}</text>
+            </g>;
+          })}
+          {[0,2,4,6,8,10].map(function(e){
+            var x=55+e*57.5;
+            return <text key={e} x={x} y={250} textAnchor="middle" fill={C.dim} fontSize={8} fontFamily="monospace">{"E"+e}</text>;
+          })}
+          <polyline points={chartPts.map(function(p){return(55+p.e*57.5)+","+(230-p.task*2)}).join(" ")} fill="none" stroke={C.green} strokeWidth={2}/>
+          <polyline points={chartPts.map(function(p){return(55+p.e*57.5)+","+(230-p.gen*2)}).join(" ")} fill="none" stroke={C.red} strokeWidth={2} strokeDasharray="6,3"/>
+
+          <line x1={55+epoch*57.5} y1={25} x2={55+epoch*57.5} y2={235} stroke={strat.color+"40"} strokeWidth={1} strokeDasharray="4,4"/>
+          <circle cx={55+epoch*57.5} cy={230-taskV*2} r={5} fill={C.green} stroke="#0a0a0f" strokeWidth={2}/>
+          <circle cx={55+epoch*57.5} cy={230-genV*2} r={5} fill={C.red} stroke="#0a0a0f" strokeWidth={2}/>
+
+          <line x1={480} y1={18} x2={500} y2={18} stroke={C.green} strokeWidth={2}/>
+          <text x={505} y={22} fill={C.green} fontSize={9} fontFamily="monospace">Task Perf.</text>
+          <line x1={480} y1={34} x2={500} y2={34} stroke={C.red} strokeWidth={2} strokeDasharray="6,3"/>
+          <text x={505} y={38} fill={C.red} fontSize={9} fontFamily="monospace">General Knowl.</text>
+        </svg>
+      </div>
+
+      <Card style={{maxWidth:750,margin:"0 auto 12px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+          <div style={{fontSize:9,color:C.muted}}>Epoch:</div>
+          <input type="range" min={0} max={10} value={epoch} onChange={function(e){setEpoch(parseInt(e.target.value));setAutoP(false)}} style={{flex:1}}/>
+          <div style={{fontSize:14,fontWeight:800,color:strat.color,fontFamily:"monospace",minWidth:30}}>{epoch}</div>
+          <button onClick={function(){setEpoch(0);setAutoP(!autoP)}} style={{
+            padding:"4px 10px",borderRadius:6,border:"1px solid "+(autoP?C.yellow:C.border),
+            background:autoP?C.yellow+"20":C.card,color:autoP?C.yellow:C.muted,
+            cursor:"pointer",fontSize:9,fontFamily:"monospace"
+          }}>{autoP?"||":"\u25B6 Animate"}</button>
+        </div>
+        <div style={{display:"flex",justifyContent:"center",gap:30}}>
+          <StatBox label="TASK ACCURACY" value={taskV.toFixed(0)+"%"} color={C.green}/>
+          <StatBox label="GENERAL KNOWLEDGE" value={genV.toFixed(0)+"%"} color={genV<50?C.red:genV<70?C.orange:C.blue}/>
+        </div>
+        <div style={{marginTop:10,fontSize:10,color:C.muted,lineHeight:1.7,fontStyle:"italic",borderLeft:"3px solid "+strat.color+"40",paddingLeft:10}}>{strat.desc}</div>
+      </Card>
+
+      <Card style={{maxWidth:750,margin:"0 auto 16px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:12}}>When to Use Full Fine-Tuning</div>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:220,padding:"10px 14px",borderRadius:8,background:C.green+"06",border:"1px solid "+C.green+"20"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.green,marginBottom:6}}>{"\u2713 DO use when:"}</div>
+            {["10K+ training examples","Multi-GPU compute available","Task very different from pre-training","Maximum quality required"].map(function(t,i){
+              return <div key={i} style={{fontSize:9,color:C.muted,lineHeight:1.8}}>{"  \u2713 "+t}</div>;
+            })}
+          </div>
+          <div style={{flex:1,minWidth:220,padding:"10px 14px",borderRadius:8,background:C.red+"06",border:"1px solid "+C.red+"20"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.red,marginBottom:6}}>{"\u26A0 AVOID when:"}</div>
+            {["Limited budget: use PEFT","Small dataset: overfitting risk","Multiple tasks: LoRA is modular","Quick iteration: too slow"].map(function(t,i){
+              return <div key={i} style={{fontSize:9,color:C.muted,lineHeight:1.8}}>{"  \u26A0 "+t}</div>;
+            })}
+          </div>
+        </div>
+      </Card>
+
+      <Insight title="The Core Tension">
+        Catastrophic forgetting is a <span style={{color:C.red,fontWeight:700}}>fundamental trade-off</span>. New gradients <span style={{color:C.red}}>overwrite pre-training patterns</span>. Best mitigations: <span style={{color:C.yellow,fontWeight:700}}>small LR</span> + <span style={{color:C.blue,fontWeight:700}}>early stopping</span> + <span style={{color:C.green,fontWeight:700}}>data mixing</span>. Or skip the problem entirely with <span style={{color:C.purple,fontWeight:700}}>PEFT/LoRA</span>.
+      </Insight>
+    </div>
+  );
+}
+
+
+/* ==============================================================
+   ROOT APP
+   ============================================================== */
+function App() {
+  var _t = useState(0), tab = _t[0], setTab = _t[1];
+  var tabs = ["Big Picture","Training Loop","Memory & Cost","Data Pipeline","Variants","Forgetting"];
+  return (
+    <div style={{background:C.bg,minHeight:"100vh",padding:"24px 16px",fontFamily:"'JetBrains Mono','SF Mono',monospace",color:C.text,maxWidth:960,margin:"0 auto"}}>
+      <div style={{textAlign:"center",marginBottom:16}}>
+        <div style={{fontSize:22,fontWeight:800,background:"linear-gradient(135deg,"+C.accent+","+C.yellow+")",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",display:"inline-block"}}>Full Fine-Tuning</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:4}}>Interactive visual walkthrough &#8212; from concept to catastrophic forgetting</div>
+      </div>
+      <TabBar tabs={tabs} active={tab} onChange={setTab}/>
+      {tab===0 && <TabBigPicture/>}
+      {tab===1 && <TabTrainingLoop/>}
+      {tab===2 && <TabMemory/>}
+      {tab===3 && <TabDataPipeline/>}
+      {tab===4 && <TabVariants/>}
+      {tab===5 && <TabForgetting/>}
+    </div>
+  );
+}
+
+/* Mount with error display */
+try {
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+} catch(err) {
+  document.getElementById("root").innerHTML = '<div id="root-error"><b>Render Error:</b><br/>'+err.message+'</div>';
+}
+</script>
+
+<script>
+/* Fallback: if CDN scripts fail, show message after 8s */
+setTimeout(function(){
+  var el = document.getElementById("root-loading");
+  if(el){el.innerHTML="CDN scripts may have failed to load. Check network.";el.style.color="#ef4444"}
+},8000);
+</script>
+</body>
+</html>
