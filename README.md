@@ -1,3 +1,5 @@
+# This is still and ongoing project - I intend to add all implementations and concepts for deep learning 
+
 # 🧠 AI Concepts Reference Hub
 
 A Streamlit application for learning AI/ML from the ground up — from the Perceptron to Large Language Models — plus DevOps/Infrastructure tutorials.
